@@ -1,0 +1,11 @@
+**/*.md
+**/.env
+.cache
+assets
+node_modules
+.git
+.github
+*.tsbuildinfo
+docker/compose
+docker/**/Dockerfile
+.vscode
