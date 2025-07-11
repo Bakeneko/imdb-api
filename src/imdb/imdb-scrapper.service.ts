@@ -95,12 +95,16 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
       if (type == IMDbItemType.TVEpisode) {
         year = new Date(data.datePublished as string).getFullYear();
 
-        const timeRequired = (data.timeRequired ?? data.duration) as string;
-        const timeMatch = timeRequired.match(/PT(\d+H)?(\d+M)?/);
-        if (timeMatch) {
-          const hours = parseInt(timeMatch[1] ?? 0);
-          const minutes = parseInt(timeMatch[2] ?? 0);
-          runtime = hours * 3600 + minutes * 60;
+        const timeRequired = (data.timeRequired ?? data.duration) as
+          | string
+          | undefined;
+        if (timeRequired != undefined) {
+          const timeMatch = timeRequired.match(/PT(\d+H)?(\d+M)?/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1] ?? 0);
+            const minutes = parseInt(timeMatch[2] ?? 0);
+            runtime = hours * 3600 + minutes * 60;
+          }
         }
       } else {
         const yearMatches = [
