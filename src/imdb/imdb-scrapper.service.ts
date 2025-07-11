@@ -108,7 +108,7 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         }
       } else {
         const yearMatches = [
-          ...pageTitle.matchAll(/\((\d{4})\)|\([^0-9]+ (\d{4})–/g),
+          ...pageTitle.matchAll(/\((\d{4})\)|\([^0-9]+ (\d{4})–?/g),
         ];
         year =
           yearMatches.length > 0
