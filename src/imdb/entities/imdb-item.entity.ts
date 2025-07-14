@@ -116,6 +116,13 @@ export class IMDbItem {
   year: number;
 
   /**
+   * The item's number of seasons
+   * @example 1
+   */
+  @ApiProperty({ example: 1, description: "The item's number of seasons" })
+  seasons?: number;
+
+  /**
    * The item's episodes
    * @example []
    */

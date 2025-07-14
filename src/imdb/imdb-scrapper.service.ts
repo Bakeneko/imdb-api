@@ -137,13 +137,23 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
 
       const keywords = data.keywords as string | undefined;
 
-      await page.close();
-
+      let seasons: number | undefined;
       let episodes: IMDbEpisode[] | undefined;
 
-      if (getEpisodes && type == IMDbItemType.TVSeries) {
-        episodes = await this.findSeasons(imdbId, language);
+      if (type == IMDbItemType.TVSeries) {
+        const rawSeasons = await page.$eval(
+          'select#browse-episodes-season',
+          (el) => el.getAttribute('aria-label')?.match(/\d+/)?.[0],
+        );
+        if (rawSeasons != undefined) {
+          seasons = Number.parseInt(rawSeasons);
+        }
+        if (getEpisodes) {
+          episodes = await this.findSeasons(imdbId, language);
+        }
       }
+
+      await page.close();
 
       const item: IMDbItem = {
         imdbId: imdbId,
@@ -158,6 +168,7 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         posterUrl: data.image as string,
         runtime,
         year: year,
+        seasons,
         episodes,
       };
 

@@ -26,7 +26,7 @@ export class IMDbController {
     @Param('imdbId') imdbId: string,
     @Query('language') language: string,
     @Query('episodes', new DefaultValuePipe(false), ParseBoolPipe)
-    episodes?: boolean,
+    episodes: boolean = false,
   ): Promise<IMDbItem | undefined> {
     const item = await this.imdbService.findTitle(imdbId, language, episodes);
     if (!item) {
