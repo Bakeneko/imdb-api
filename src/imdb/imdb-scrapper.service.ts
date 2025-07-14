@@ -96,7 +96,10 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
       );
 
       if (type == IMDbItemType.TVEpisode) {
-        year = new Date(data.datePublished as string).getFullYear();
+        year =
+          data.datePublished != undefined
+            ? new Date(data.datePublished as string).getFullYear()
+            : undefined;
 
         const timeRequired = (data.timeRequired ?? data.duration) as
           | string

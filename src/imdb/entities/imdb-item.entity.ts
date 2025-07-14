@@ -113,7 +113,7 @@ export class IMDbItem {
    * @example 1994
    */
   @ApiProperty({ example: 1994, description: "The item's year of release" })
-  year: number;
+  year?: number;
 
   /**
    * The item's number of seasons
