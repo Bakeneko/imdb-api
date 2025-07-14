@@ -5,21 +5,18 @@ import { IMDbResult } from './entities/imdb-result.entity';
 
 @Injectable()
 export class IMDbService {
-  private readonly cache: Map<string, IMDbItem> = new Map<string, IMDbItem>();
-
   constructor(private readonly imdbScrapperService: IMDbScrapperService) {}
 
   async findTitle(
     imdbId: string,
     language: string,
+    getEpisodes: boolean = false,
   ): Promise<IMDbItem | undefined> {
-    if (this.cache.has(imdbId)) {
-      return this.cache.get(imdbId);
-    }
-    const item = await this.imdbScrapperService.findTitle(imdbId, language);
-    if (item) {
-      //this.cache.set(imdbId, item);
-    }
+    const item = await this.imdbScrapperService.findTitle(
+      imdbId,
+      language,
+      getEpisodes,
+    );
     return item;
   }
 

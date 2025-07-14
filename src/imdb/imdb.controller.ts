@@ -1,8 +1,10 @@
 import {
   Controller,
+  DefaultValuePipe,
   Get,
   NotFoundException,
   Param,
+  ParseBoolPipe,
   Query,
 } from '@nestjs/common';
 import { ApiResponse, ApiSecurity, ApiTags, ApiQuery } from '@nestjs/swagger';
@@ -23,8 +25,10 @@ export class IMDbController {
   async findTitle(
     @Param('imdbId') imdbId: string,
     @Query('language') language: string,
+    @Query('episodes', new DefaultValuePipe(false), ParseBoolPipe)
+    episodes?: boolean,
   ): Promise<IMDbItem | undefined> {
-    const item = await this.imdbService.findTitle(imdbId, language);
+    const item = await this.imdbService.findTitle(imdbId, language, episodes);
     if (!item) {
       throw new NotFoundException();
     }

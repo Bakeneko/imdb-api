@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IMDbEpisode } from './imdb-episode.entity';
 
 export enum IMDbItemType {
   Movie = 'movie',
@@ -113,4 +114,14 @@ export class IMDbItem {
    */
   @ApiProperty({ example: 1994, description: "The item's year of release" })
   year: number;
+
+  /**
+   * The item's episodes
+   * @example []
+   */
+  @ApiPropertyOptional({
+    example: [],
+    description: "The item's episodes",
+  })
+  episodes?: IMDbEpisode[];
 }

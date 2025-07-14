@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { DateTime } from 'luxon';
 import { IMDbItem, IMDbItemType } from './entities/imdb-item.entity';
 import { IMDbResult } from './entities/imdb-result.entity';
 import { Browser } from 'puppeteer';
@@ -11,6 +12,7 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
 import { IMDbItemTypeMapper } from './mapper/imdb-item-type.mapper';
+import { IMDbEpisode } from './entities/imdb-episode.entity';
 
 @Injectable()
 export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
@@ -45,6 +47,7 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
   async findTitle(
     imdbId: string,
     language: string,
+    getEpisodes: boolean = false,
   ): Promise<IMDbItem | undefined> {
     const url =
       language != 'en'
@@ -128,13 +131,19 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      await page.close();
-
       if (!year) {
         throw new Error('Year not found in page title');
       }
 
       const keywords = data.keywords as string | undefined;
+
+      await page.close();
+
+      let episodes: IMDbEpisode[] | undefined;
+
+      if (getEpisodes && type == IMDbItemType.TVSeries) {
+        episodes = await this.findSeasons(imdbId, language);
+      }
 
       const item: IMDbItem = {
         imdbId: imdbId,
@@ -149,9 +158,180 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         posterUrl: data.image as string,
         runtime,
         year: year,
+        episodes,
       };
 
       return item;
+    } catch (error) {
+      this.logger.error(error);
+    }
+
+    await page.close();
+  }
+
+  async findSeasons(
+    imdbId: string,
+    language: string,
+  ): Promise<IMDbEpisode[] | undefined> {
+    const url =
+      language != 'en'
+        ? `${this.baseUrl}/${language}/title/${imdbId}/episodes?season=1&ref_=ttep`
+        : `${this.baseUrl}/title/${imdbId}/episodes?season=1&ref_=ttep`;
+
+    const dateFormats = new Map<string, string>([
+      ['en', 'ccc, LLL d, yyyy'],
+      ['fr', 'ccc, d LLL yyyy'],
+    ]);
+
+    const page = await this.browser.newPage();
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': language,
+    });
+    await page.evaluateOnNewDocument((lang) => {
+      Object.defineProperty(navigator, 'language', {
+        get() {
+          return language;
+        },
+      });
+      Object.defineProperty(navigator, 'languages', {
+        get() {
+          return [language];
+        },
+      });
+    }, language);
+
+    try {
+      await page.goto(url, {
+        waitUntil: 'networkidle2',
+      });
+
+      const seriesTitle = await page.$eval(
+        'hgroup h2[data-testid="subtitle"]',
+        (e) => e.innerText,
+      );
+
+      let seasonIndex = 1;
+      let seasonCount = 1;
+      const episodes: IMDbEpisode[] = [];
+
+      do {
+        let lastSeasonsTab = await page.waitForSelector(
+          'a[data-testid="tab-season-entry"]',
+          {
+            timeout: 3000,
+          },
+        );
+
+        if (!lastSeasonsTab) {
+          throw new Error('Seasons tabs not found');
+        }
+
+        const tabs = await page.$$('a[data-testid="tab-season-entry"]');
+        lastSeasonsTab = tabs[tabs.length - 1];
+
+        seasonCount = await page.evaluate(
+          (e) => Number.parseInt(e.innerText),
+          lastSeasonsTab,
+        );
+
+        const rawEpisodes = await page.$$eval(
+          'article.episode-item-wrapper',
+          (items: Element[]) =>
+            items.map((el) => {
+              const posterUrl = el
+                .querySelector('img.ipc-image')
+                ?.getAttribute('src')
+                ?.trim();
+              const itemTitle =
+                el
+                  .querySelector('a.ipc-title-link-wrapper')
+                  ?.textContent?.trim() ?? '';
+              const itemUrl = el
+                .querySelector('a.ipc-title-link-wrapper')
+                ?.getAttribute('href')
+                ?.trim();
+
+              const itemRelease =
+                el
+                  .querySelector(
+                    'h4[data-testid="slate-list-card-title"] + span',
+                  )
+                  ?.textContent?.trim() ?? '';
+
+              const synopsis = el
+                .querySelector(
+                  'div.ipc-html-content-inner-div[role="presentation"]',
+                )
+                ?.textContent?.trim();
+
+              const rawRating = el
+                .querySelector('span.ipc-rating-star--rating')
+                ?.textContent?.trim()
+                .replace(',', '.');
+              const rating = rawRating ? parseFloat(rawRating) : undefined;
+
+              const number = Number.parseInt(
+                itemTitle.match(/S\d+.E(\d+)/)?.[1] ?? '',
+              );
+              const title = itemTitle.match(/S\d+.E\d+\s?∙(.*)/)?.[1] ?? '';
+
+              return {
+                imdbId: itemUrl?.match(/tt\d+/)?.[0] ?? '',
+                title,
+                number,
+                posterUrl,
+                synopsis,
+                rating,
+                rawRelease: itemRelease,
+              };
+            }),
+        );
+
+        episodes.push(
+          ...rawEpisodes.map((r) => {
+            let releaseDate: Date | undefined;
+            if (r.rawRelease != null) {
+              releaseDate = DateTime.fromFormat(
+                r.rawRelease,
+                dateFormats.get(language) ?? dateFormats.get('en') ?? '',
+                {
+                  locale: language,
+                },
+              ).toJSDate();
+            }
+
+            return {
+              imdbId: r.imdbId,
+              seriesImdbId: imdbId,
+              seriesTitle,
+              season: seasonIndex,
+              number: r.number,
+              title: r.title,
+              synopsis: r.synopsis,
+              posterUrl: r.posterUrl,
+              rating: r.rating,
+              release: releaseDate,
+              year: releaseDate?.getFullYear(),
+            };
+          }),
+        );
+
+        seasonIndex++;
+
+        if (seasonIndex > seasonCount) {
+          break;
+        }
+
+        const nextTab = tabs[seasonIndex - 1];
+        await nextTab.click();
+        await page.waitForNavigation({
+          waitUntil: 'networkidle2',
+        });
+      } while (seasonIndex <= seasonCount);
+
+      await page.close();
+
+      return episodes;
     } catch (error) {
       this.logger.error(error);
     }
@@ -210,10 +390,17 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         waitUntil: 'networkidle2',
       });
 
-      await page.waitForSelector('.ipc-metadata-list-summary-item', {
-        timeout: 0,
-        visible: true,
-      });
+      const itemList = await page.waitForSelector(
+        '.ipc-metadata-list-summary-item',
+        {
+          timeout: 5000,
+          visible: true,
+        },
+      );
+
+      if (!itemList) {
+        throw new Error('Item list not found');
+      }
 
       const rawResults = await page.$$eval(
         '.ipc-metadata-list-summary-item',
@@ -252,18 +439,10 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
 
             const rawRating = el
               .querySelector('span.ipc-rating-star--rating')
-              ?.textContent?.trim();
+              ?.textContent?.trim()
+              .replace(',', '.');
             const rating = rawRating ? parseFloat(rawRating) : undefined;
 
-            /*const yearElement = el.querySelector(
-              '.ipc-metadata-list-item__year',
-            );
-            const yearText = yearElement?.textContent?.trim() ?? '';
-            const yearMatch = yearText.match(/(\d{4})/);
-            const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
-            const ratingElement = el.querySelector('.ipc-rating-star__rating');
-            const ratingText = ratingElement?.textContent?.trim() ?? '';
-            const rating = ratingText ? parseFloat(ratingText) : undefined;*/
             return {
               imdbId: itemUrl?.match(/tt\d+/)?.[0] ?? '',
               title,
