@@ -144,10 +144,12 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
       let episodes: IMDbEpisode[] | undefined;
 
       if (type == IMDbItemType.TVSeries) {
-        const rawSeasons = await page.$eval(
-          'select#browse-episodes-season',
-          (el) => el.getAttribute('aria-label')?.match(/\d+/)?.[0],
-        );
+        const rawSeasons = await page
+          .$eval(
+            'select#browse-episodes-season',
+            (el) => el.getAttribute('aria-label')?.match(/\d+/)?.[0],
+          )
+          .catch(() => '1');
         if (rawSeasons != undefined) {
           seasons = Number.parseInt(rawSeasons);
         }
