@@ -5,7 +5,7 @@ import {
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class ControllerLoggingInterceptor implements NestInterceptor {
@@ -16,11 +16,8 @@ export class ControllerLoggingInterceptor implements NestInterceptor {
     const { method, url } = context.switchToHttp().getRequest();
     const controller = context.getClass().name;
     const handler = context.getHandler().name;
+    this.logger.log(`${method} ${url} -> ${controller}.${handler}()`);
 
-    return next.handle().pipe(
-      tap(() => {
-        this.logger.log(`${method} ${url} -> ${controller}.${handler}()`);
-      }),
-    );
+    return next.handle();
   }
 }

@@ -22,6 +22,14 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
   private readonly baseUrl = 'https://www.imdb.com';
 
   async onModuleInit() {
+    return this.startBrowser();
+  }
+
+  async onModuleDestroy() {
+    return this.stopBrowser();
+  }
+
+  private async startBrowser() {
     const perfLogger = new Logger(IMDbScrapperService.name, {
       timestamp: true,
     });
@@ -35,13 +43,18 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
     perfLogger.log(`Browser started`);
   }
 
-  async onModuleDestroy() {
+  private async stopBrowser() {
     const perfLogger = new Logger(IMDbScrapperService.name, {
       timestamp: true,
     });
     perfLogger.log(`Stopping browser...`);
     await this.browser?.close();
     perfLogger.log(`Browser stopped`, Logger.getTimestamp());
+  }
+
+  private async restartBrowser() {
+    await this.stopBrowser();
+    await this.startBrowser();
   }
 
   async findTitle(
@@ -54,7 +67,14 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         ? `${this.baseUrl}/${language}/title/${imdbId}`
         : `${this.baseUrl}/title/${imdbId}`;
 
-    const page = await this.browser.newPage();
+    const page = await this.browser.newPage().catch(async (error) => {
+      this.logger.error(
+        'Failed to open a new page, restarting the browser',
+        error,
+      );
+      await this.restartBrowser();
+      return this.browser.newPage();
+    });
     await page.setExtraHTTPHeaders({
       'Accept-Language': language,
     });
@@ -72,9 +92,18 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
     }, language);
 
     try {
-      await page.goto(url, {
-        waitUntil: 'networkidle2',
-      });
+      await page
+        .goto(url, {
+          waitUntil: 'networkidle2',
+        })
+        .catch(async (error) => {
+          this.logger.error(
+            `Failed to load page: ${url}, restarting the browser`,
+            error,
+          );
+          await this.restartBrowser();
+          throw error;
+        });
 
       const jsonLd = await page.$eval(
         'script[type="application/ld+json"]',
@@ -199,7 +228,14 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
       ['fr', 'ccc, d LLL yyyy'],
     ]);
 
-    const page = await this.browser.newPage();
+    const page = await this.browser.newPage().catch(async (error) => {
+      this.logger.error(
+        'Failed to open a new page, restarting the browser',
+        error,
+      );
+      await this.restartBrowser();
+      return this.browser.newPage();
+    });
     await page.setExtraHTTPHeaders({
       'Accept-Language': language,
     });
@@ -217,9 +253,18 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
     }, language);
 
     try {
-      await page.goto(url, {
-        waitUntil: 'networkidle2',
-      });
+      await page
+        .goto(url, {
+          waitUntil: 'networkidle2',
+        })
+        .catch(async (error) => {
+          this.logger.error(
+            `Failed to load page: ${url}, restarting the browser`,
+            error,
+          );
+          await this.restartBrowser();
+          throw error;
+        });
 
       const seriesTitle = await page.$eval(
         'hgroup h2[data-testid="subtitle"]',
@@ -384,7 +429,14 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
         ? `${this.baseUrl}/${language}/search/title/?${params}`
         : `${this.baseUrl}/search/title/?${params}`;
 
-    const page = await this.browser.newPage();
+    const page = await this.browser.newPage().catch(async (error) => {
+      this.logger.error(
+        'Failed to open a new page, restarting the browser',
+        error,
+      );
+      await this.restartBrowser();
+      return this.browser.newPage();
+    });
     await page.setExtraHTTPHeaders({
       'Accept-Language': language,
     });
@@ -402,9 +454,18 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
     }, language);
 
     try {
-      await page.goto(url, {
-        waitUntil: 'networkidle2',
-      });
+      await page
+        .goto(url, {
+          waitUntil: 'networkidle2',
+        })
+        .catch(async (error) => {
+          this.logger.error(
+            `Failed to load page: ${url}, restarting the browser`,
+            error,
+          );
+          await this.restartBrowser();
+          throw error;
+        });
 
       const itemList = await page.waitForSelector(
         '.ipc-metadata-list-summary-item',
