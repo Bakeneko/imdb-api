@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { decode } from 'he';
 import { DateTime } from 'luxon';
 import { IMDbItem, IMDbItemType } from './entities/imdb-item.entity';
 import { IMDbResult } from './entities/imdb-result.entity';
@@ -55,6 +56,11 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
   private async restartBrowser() {
     await this.stopBrowser();
     await this.startBrowser();
+  }
+
+  private decodeHtmlEntities(text: string | undefined): string | undefined {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return text != undefined ? decode(text) : text;
   }
 
   async findTitle(
@@ -191,10 +197,15 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
 
       const item: IMDbItem = {
         imdbId: imdbId,
-        title: (data.alternateName ?? data.name) as string,
-        originalTitle: data.name as string,
+        title:
+          this.decodeHtmlEntities(
+            (data.alternateName ?? data.name) as string | undefined,
+          ) ?? '',
+        originalTitle:
+          this.decodeHtmlEntities(data.name as string | undefined) ?? '',
         type,
-        synopsis: data.description as string,
+        synopsis:
+          this.decodeHtmlEntities(data.description as string | undefined) ?? '',
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         rating: data.aggregateRating?.ratingValue as number | undefined,
         genres: data.genre as string[],
@@ -367,8 +378,8 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
               seriesTitle,
               season: seasonIndex,
               number: r.number,
-              title: r.title,
-              synopsis: r.synopsis,
+              title: this.decodeHtmlEntities(r.title),
+              synopsis: this.decodeHtmlEntities(r.synopsis),
               posterUrl: r.posterUrl,
               rating: r.rating,
               release: releaseDate,
@@ -536,7 +547,7 @@ export class IMDbScrapperService implements OnModuleInit, OnModuleDestroy {
       const results: IMDbResult[] = rawResults.map((r) => {
         return {
           imdbId: r.imdbId,
-          title: r.title,
+          title: this.decodeHtmlEntities(r.title) ?? '',
           posterUrl: r.posterUrl,
           type: IMDbItemTypeMapper.fromString(r.rawType),
           year: r.year,
